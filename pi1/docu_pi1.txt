@@ -1,0 +1,23 @@
+Pi 1:
+
+- Raspberry pi bullseye image
+- Out of band configuration(eth0 -> 10.0.0.1)
+- predictable interfaces AAN in raspi-config
+- packages:
+	- Hostapd
+	- dnsmasq
+	- git
+	- bc
+	- airmon-ng/rtl8188 drivers
+		- append in /boot/config.txt "arm_64bit=0" aan het einde
+		- git clone https://github.com/aircrack-ng/rtl8188eus
+		- echo 'blacklist r8188eu'|sudo tee -a '/etc/modprobe.d/realtek.conf'
+		- cd /lib/modules/$(uname -r)/kernel/drivers/net/wireless
+		- sudo rm -rf ./realtek && cd ~/rtl8188eus/
+		- make && sudo make install
+		- airmon-ng ; ifconfig <external if> down ; iwconfig <external if> mode master ; ifconfig <external if> up ;
+	
+belangerijke bronnen:
+
+https://yuta-san.medium.com/wifi-access-point-on-kali-linux-with-raspberry-pi-9cfe7408ea1e
+https://wiki.debian.org/NetworkConfiguration

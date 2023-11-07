@@ -1,0 +1,98 @@
+from machine import Pin, Timer
+import neopixel
+import time
+import network
+from umqtt.simple import MQTTClient
+import json
+
+# mosquitto_pub -h localhost -m '{ "idx" : 10, "nvalue" : 1 }' -t 'domoticz/in' test
+# Required library:
+# umqtt
+
+
+# Define the pin for the Neopixel LED and initialize it
+led_pin = Pin(12, Pin.OUT)
+np = neopixel.NeoPixel(led_pin, 1)
+
+trigger_pin = Pin(14, Pin.OUT)
+echo_pin = Pin(15, Pin.IN)
+
+# Function to measure the distance with the SR04
+def measure_distance():
+    trigger_pin.value(0)
+    time.sleep_us(2)
+    trigger_pin.value(1)
+    time.sleep_us(10)
+    trigger_pin.value(0)
+
+    while echo_pin.value() == 0:
+        pulse_start = time.ticks_us()
+    while echo_pin.value() == 1:
+        pulse_end = time.ticks_us()
+    pulse_duration = pulse_end - pulse_start
+    distance = (pulse_duration / 2) / 29.1
+    return distance
+
+# Wi-Fi setup
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+print("Connecting to Wi-Fi...")
+wlan.connect('iot_groep_3', 'Pa$$w0rd')
+while not wlan.isconnected():
+    pass
+print("Wi-Fi connected:", wlan.ifconfig())
+
+# MQTT setup
+mqtt_server = "192.168.1.1"
+client_id = "Parkeerplaats #1"
+topic = "domoticz/in"
+client = MQTTClient(client_id, mqtt_server)
+
+def publish_message(is_occupied):
+    try:
+        message_on = {"idx": 10, "nvalue": 1}
+        message_off = {"idx": 10, "nvalue": 0}
+        if is_occupied:
+            client.connect()
+            client.publish(topic, json.dumps(message_on))
+            client.disconnect()
+        else:
+            client.connect()
+            client.publish(topic, json.dumps(message_off))
+            client.disconnect()
+    except Exception as e:
+        print("Error during MQTT publishing:", e)
+
+# Timer for distance measurement and LED color update
+def timer_callback(timer):
+    distance = measure_distance()
+    print("Distance:", distance)
+    if distance > 30:	
+        np[0] = (0, 255, 0)  # Green color for distances greater than 30
+        np.write()
+    elif 10 < distance <= 30:
+        np[0] = (255, 150, 0)  # Yellow color for distances between 10 and 30
+        np.write()
+    else:
+        np[0] = (255, 0, 0)  # Red color for distances less than or equal to 10
+        np.write()
+
+# Timer for MQTT publishing every 1 minute
+def publish_timer_callback(timer):
+    distance = measure_distance()
+    if distance <= 30:
+        publish_message(True)  # Publish "on" message
+    else:
+        publish_message(False)  # Publish "off" message
+
+# Main program
+measure_timer = Timer(-1)
+measure_timer.init(period=100, mode=Timer.PERIODIC, callback=timer_callback)
+
+publish_timer = Timer(-1)
+publish_timer.init(period=60000, mode=Timer.PERIODIC, callback=publish_timer_callback)
+
+while True:
+    pass  # Keep the main program running
+
+
